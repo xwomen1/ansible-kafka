@@ -1,0 +1,118 @@
+- name: Ensure kafka user and group exist
+  ansible.builtin.user:
+    name: kafka
+    group: kafka
+    system: true
+    home: /opt/kafka
+    shell: /sbin/nologin
+    state: present
+  become: true
+
+- name: Stop Kafka if running
+  ansible.builtin.systemd:
+    name: kafka
+    state: stopped
+  become: true
+  ignore_errors: true 
+
+# ---- Create necessary directories with correct ownership ----
+- name: Ensure Kafka directories exist with proper ownership
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: kafka
+    group: kafka
+    mode: '0755'
+  loop:
+    - /var/lib/kafka
+    - /var/lib/kafka/data
+    - /var/lib/kafka/metadata
+    - /opt/kafka/logs
+  become: true
+
+# ---- Download and extract Kafka ----
+- name: Download Apache Kafka
+  ansible.builtin.get_url:
+    url: "https://archive.apache.org/dist/kafka/{{ kafka_version }}/kafka_2.13-{{ kafka_version }}.tgz"
+    dest: /tmp/kafka.tgz
+
+- name: Extract Kafka
+  ansible.builtin.unarchive:
+    src: /tmp/kafka.tgz
+    dest: /opt/
+    remote_src: true
+    creates: "/opt/kafka_2.13-{{ kafka_version }}"
+
+- name: Create symlink for Kafka
+  ansible.builtin.file:
+    src: "/opt/kafka_2.13-{{ kafka_version }}"
+    dest: /opt/kafka
+    state: link
+
+# ---- Configuration ----
+- name: Deploy Kafka server.properties
+  ansible.builtin.template:
+    src: server.properties.j2
+    dest: /opt/kafka/config/server.properties
+    owner: kafka
+    group: kafka
+    mode: '0644'
+  become: true
+
+- name: Ensure Kafka scripts are executable
+  ansible.builtin.file:
+    path: /opt/kafka/bin/kafka-server-start.sh
+    owner: kafka
+    group: kafka
+    mode: '0755'
+  become: true
+
+- name: Adjust Kafka JVM Heap Size
+  replace:
+    path: /opt/kafka/bin/kafka-server-start.sh
+    regexp: 'export KAFKA_HEAP_OPTS=".*"'
+    replace: 'export KAFKA_HEAP_OPTS="-Xmx512M -Xms512M"'
+  become: true
+
+# ---- Format metadata only once ----
+- name: Check if Kafka is already formatted
+  ansible.builtin.stat:
+    path: /var/lib/kafka/metadata/__cluster_metadata-0
+  register: metadata_check
+
+- name: Generate cluster ID (only once)
+  ansible.builtin.shell: /opt/kafka/bin/kafka-storage.sh random-uuid
+  register: kafka_cluster_id
+  when: not metadata_check.stat.exists
+  run_once: true
+
+
+
+
+
+- name: 5b. Reload Systemd daemon de nhan service moi
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name:  Open TCP port 9092 (Kafka Broker)
+  ansible.builtin.command: firewall-cmd --zone=public --add-port=9092/tcp --permanent
+  changed_when: "'success' in kafka_port_9092.stdout"
+  register: kafka_port_9092
+  become: yes
+
+- name:  Open TCP port 9093 (Kafka Controller/KRaft)
+  ansible.builtin.command: firewall-cmd --zone=public --add-port=9093/tcp --permanent
+  changed_when: "'success' in kafka_port_9093.stdout"
+  register: kafka_port_9093
+  become: yes
+
+- name:  Reload FirewallD after adding ports
+  ansible.builtin.command: firewall-cmd --reload
+  when: kafka_port_9092.changed or kafka_port_9093.changed
+  become: yes
+                            
+- name: 5c. Kich hoat va khoi dong service Kafka
+  ansible.builtin.systemd:
+    name: kafka
+    state: started
+    enabled: true

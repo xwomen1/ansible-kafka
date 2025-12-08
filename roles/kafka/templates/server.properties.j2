@@ -1,0 +1,18 @@
+# server.properties.j2 (Cấu hình KRaft chuẩn)
+
+# 1. Thong tin Node va Role
+node.id={{ node_id }}
+process.roles=broker,controller
+
+# 2. Cau hinh Listener/Protocol Map
+listener.security.protocol.map=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+
+listeners=PLAINTEXT://{{ ansible_host }}:9092,CONTROLLER://{{ ansible_host }}:9093
+controller.quorum.voters=1@servera:9093,2@serverb:9093,3@serverc:9093
+
+controller.listener.names=CONTROLLER
+
+
+# 3. Thu muc du lieu
+log.dirs=/var/lib/kafka/data
+metadata.log.dir=/var/lib/kafka/metadata

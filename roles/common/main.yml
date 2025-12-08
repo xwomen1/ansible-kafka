@@ -1,0 +1,17 @@
+- name: create kafka user and group
+  ansible.builtin.user:
+    name: kafka
+    shell: /sbin/nologin
+    state: present
+    create_home: false
+- name: Tao group 'kafka'
+  ansible.builtin.group:
+    name: kafka
+    state: present
+
+
+- name: Cai dat Java (OpenJDK 11)
+  ansible.builtin.yum: 
+    name: java-11-openjdk-devel
+    state: present
+  become: true 

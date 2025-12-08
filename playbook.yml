@@ -1,0 +1,12 @@
+---
+- name: Cai dat moi truong chung (Java, user)
+  hosts: kafka_kraft
+  become: true
+  roles:
+    - common 
+    
+- name: Trien khai Kafka Cluster su dung KRaft
+  hosts: kafka_kraft
+  become: true
+  roles:
+    - kafka
