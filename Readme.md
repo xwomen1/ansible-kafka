@@ -3,24 +3,6 @@
 This repository contains an Ansible automation setup for installing and configuring an Apache Kafka multi-node cluster.
 It includes reusable roles, templates, and a single `playbook.yml` to orchestrate the deployment.
 
-## Repository Structure
-
-.
-├── inventory.ini
-├── playbook.yml
-├── README.md
-└── roles
-    ├── common
-    │   └── main.yml
-    └── kafka
-        ├── handlers
-        │   └── main.yaml
-        ├── tasks
-        │   └── main.yml
-        └── templates
-            ├── kafka.service.j2
-            └── server.properties.j2
-
 ## Role Details
 
 ### roles/common/main.yml
