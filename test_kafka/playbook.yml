@@ -1,0 +1,69 @@
+---
+- name: Kafka cluster verification
+  hosts: kafka
+  become: true
+  tasks:
+    - name: Check Kafka service status
+      ansible.builtin.systemd:
+        name: kafka
+        state: started
+      register: kafka_status
+
+    - name: Display Kafka status result
+      ansible.builtin.debug:
+        msg: "Kafka service is running on {{ inventory_hostname }}"
+
+    - name: Check metadata quorum status
+      ansible.builtin.command: >
+        /opt/kafka/bin/kafka-metadata-quorum.sh
+        --bootstrap-server {{ inventory_hostname }}:9092
+        describe --status
+      register: quorum_status
+      changed_when: false
+
+    - name: Show quorum status
+      ansible.builtin.debug:
+        var: quorum_status.stdout_lines
+
+    - name: Create test topic if not exists
+      ansible.builtin.command: >
+        /opt/kafka/bin/kafka-topics.sh
+        --bootstrap-server {{ inventory_hostname }}:9092
+        --create --if-not-exists
+        --topic ansible-test-topic
+        --partitions 1 --replication-factor 3
+      register: create_topic
+      changed_when: "'Created topic' in create_topic.stdout"
+
+    - name: List topics
+      ansible.builtin.command: >
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server {{ inventory_hostname }}:9092 --list
+      register: topic_list
+      changed_when: false
+
+    - name: Show topic list
+      ansible.builtin.debug:
+        var: topic_list.stdout_lines
+
+    - name: Test message produce
+      ansible.builtin.shell: |
+        echo "hello-ansible-test" | /opt/kafka/bin/kafka-console-producer.sh \
+          --broker-list {{ inventory_hostname }}:9092 --topic ansible-test-topic
+      register: producer_test
+      changed_when: false
+
+    - name: Consume last message
+      ansible.builtin.shell: |
+        timeout 15 /opt/kafka/bin/kafka-console-consumer.sh \
+        --bootstrap-server {{ inventory_hostname }}:9092 \
+        --topic ansible-test-topic --from-beginning --max-messages 1
+      register: consumer_test
+      changed_when: false
+
+
+    - name: Verify consumer received message
+      ansible.builtin.assert:
+        that:
+          - "'hello-ansible-test' in consumer_test.stdout"
+        fail_msg: " Kafka consumer failed to receive test message"
+        success_msg: "Kafka producer/consumer test succeeded"
